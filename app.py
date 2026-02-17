@@ -571,12 +571,11 @@ def build_training_tab():
             placeholder="Training output will appear here…",
         )
 
-        # streaming=True lets the generator yield updates in real time
+        # Gradio 4+ streams automatically when the function is a generator (uses yield)
         train_btn.click(
             fn=run_training,
             inputs=[lr_finder],
             outputs=[log_box],
-            streaming=True,
         )
 
 
@@ -730,7 +729,6 @@ def build_sort_tab():
             fn=run_sorting,
             inputs=[],
             outputs=[status, log_box, summary],
-            streaming=True,
         )
 
 
@@ -909,7 +907,6 @@ def build_eval_tab():
             fn=run_evaluation,
             inputs=[],
             outputs=[status, log_box, report],
-            streaming=True,
         )
 
 
@@ -926,15 +923,7 @@ def build_app() -> gr.Blocks:
     column/row grids, and the ability to wire multiple inputs/outputs
     per button. gr.Interface is only suitable for single-function demos.
     """
-    with gr.Blocks(
-        theme=gr.themes.Soft(
-            primary_hue="violet",
-            secondary_hue="slate",
-            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
-        ),
-        css=CUSTOM_CSS,
-        title="Image Classifier",
-    ) as app:
+    with gr.Blocks(title="Image Classifier") as app:
 
         gr.HTML(HEADER_HTML)
 
@@ -988,9 +977,15 @@ def build_app() -> gr.Blocks:
 if __name__ == "__main__":
     app = build_app()
     app.launch(
-        share=True,           # Creates a public gradio.live URL — essential for Colab
-        debug=True,           # Shows Python tracebacks in the browser console
-        show_error=True,      # Surfaces errors in the UI rather than silently failing
+        share=True,
+        debug=True,
+        show_error=True,
         server_name="0.0.0.0",
         server_port=7860,
+        theme=gr.themes.Soft(
+            primary_hue="violet",
+            secondary_hue="slate",
+            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
+        ),
+        css=CUSTOM_CSS,
     )
