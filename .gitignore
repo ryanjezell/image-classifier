@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Data & Models (too large for git — use DVC or release assets)
+data/dataset/*/
+models/exported/*.pkl
+models/exported/*.pth
+
+# Training artifacts
+training.log
+training_history.csv
+lr_finder_plot.png
+models/saved/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# FastAI cache
+~/.fastai/
+
+# Docker
+.dockerignore
+
+# Env files
+.env
+.env.local
