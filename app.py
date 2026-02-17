@@ -923,7 +923,15 @@ def build_app() -> gr.Blocks:
     column/row grids, and the ability to wire multiple inputs/outputs
     per button. gr.Interface is only suitable for single-function demos.
     """
-    with gr.Blocks(title="Image Classifier") as app:
+    with gr.Blocks(
+        title="Image Classifier",
+        theme=gr.themes.Soft(
+            primary_hue="violet",
+            secondary_hue="slate",
+            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
+        ),
+        css=CUSTOM_CSS,
+    ) as app:
 
         gr.HTML(HEADER_HTML)
 
@@ -982,10 +990,4 @@ if __name__ == "__main__":
         show_error=True,
         server_name="0.0.0.0",
         server_port=7860,
-        theme=gr.themes.Soft(
-            primary_hue="violet",
-            secondary_hue="slate",
-            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
-        ),
-        css=CUSTOM_CSS,
     )
