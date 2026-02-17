@@ -1,0 +1,5 @@
+# Trained model files (.pkl) are saved here by train.py.
+# They are excluded from git (see .gitignore) because they can be large (50–200 MB).
+#
+# To generate the model:
+#   python train.py

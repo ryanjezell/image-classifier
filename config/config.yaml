@@ -1,0 +1,33 @@
+project:
+  name: "image_classifier"
+  seed: 42
+
+data:
+  dataset_path: "data/dataset"
+  image_size: 224
+  valid_pct: 0.2
+  batch_size: 32
+
+model:
+  architecture: "resnet50"       # resnet34 | resnet50 | efficientnet_b0 | efficientnet_b3
+  pretrained: true
+  export_path: "models/exported/classifier.pkl"
+
+training:
+  head_epochs: 4
+  head_lr: 1e-3
+  finetune_epochs: 10
+  finetune_lr_min: 1e-6
+  finetune_lr_max: 1e-4
+  dropout: 0.5
+  weight_decay: 0.01
+  label_smoothing: 0.1
+  mixup_alpha: 0.4
+
+augmentation:
+  flip_horiz: true
+  max_rotate: 15
+  max_zoom: 1.15
+  max_lighting: 0.2
+  max_warp: 0.2
+  p_affine: 0.75

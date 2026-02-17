@@ -1,0 +1,10 @@
+# Place your training images here.
+#
+# Expected structure:
+#   data/dataset/
+#       <class_name_1>/   image_001.jpg  image_002.jpg  ...
+#       <class_name_2>/   ...
+#       <class_name_3>/   ...
+#
+# Quick start — download sample data:
+#   python scripts/download_sample_data.py

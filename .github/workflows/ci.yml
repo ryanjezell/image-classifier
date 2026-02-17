@@ -1,0 +1,112 @@
+# .github/workflows/ci.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Continuous Integration workflow.
+#
+# Triggered on every push and pull request to main/master.
+# Runs:
+#   1. Lint (ruff)
+#   2. Import / syntax checks
+#   3. Smoke-test training (1 epoch, synthetic data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── Python ────────────────────────────────────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      # ── Dependencies ──────────────────────────────────────────────────────
+      - name: Install CPU-only PyTorch
+        run: |
+          pip install torch torchvision \
+            --index-url https://download.pytorch.org/whl/cpu --quiet
+
+      - name: Install project dependencies
+        run: pip install -r requirements.txt --quiet
+
+      # ── Lint ──────────────────────────────────────────────────────────────
+      - name: Lint with ruff
+        run: |
+          pip install ruff --quiet
+          ruff check src/ train.py predict.py evaluation.py api.py \
+            --ignore E501,W503
+
+      # ── Import checks ─────────────────────────────────────────────────────
+      - name: Check all modules import cleanly
+        run: |
+          python -c "from src.config_loader import load_config; print('config_loader OK')"
+          python -c "from src.utils import set_global_seed; print('utils OK')"
+          python -c "from src.data_pipeline import build_dataloaders; print('data_pipeline OK')"
+          python -c "from src.model_builder import build_learner; print('model_builder OK')"
+          python -c "from src.trainer import run_training; print('trainer OK')"
+          python -c "from predict import ImageClassifier; print('predict OK')"
+
+      # ── Smoke test ────────────────────────────────────────────────────────
+      - name: Generate synthetic dataset for smoke test
+        run: |
+          python - <<'EOF'
+          from pathlib import Path
+          from PIL import Image
+          import random, os
+
+          classes = ["cat", "dog", "bird"]
+          for cls in classes:
+              p = Path(f"data/dataset/{cls}")
+              p.mkdir(parents=True, exist_ok=True)
+              for i in range(30):
+                  img = Image.new("RGB", (64, 64),
+                                  color=(random.randint(0,255),
+                                         random.randint(0,255),
+                                         random.randint(0,255)))
+                  img.save(p / f"{cls}_{i:03d}.jpg")
+          print("Synthetic dataset created.")
+          EOF
+
+      - name: Smoke-test training (1 epoch)
+        run: |
+          python train.py --quick --skip-validation
+        env:
+          PYTHONPATH: .
+
+      - name: Smoke-test prediction
+        run: |
+          python predict.py \
+            --image data/dataset/cat/cat_000.jpg \
+            --output-format json
+        env:
+          PYTHONPATH: .
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t image-classifier:ci .
+
+      - name: Verify Docker image
+        run: |
+          docker run --rm image-classifier:ci python -c \
+            "from predict import ImageClassifier; print('Docker image OK')"
