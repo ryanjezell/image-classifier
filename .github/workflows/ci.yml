@@ -49,7 +49,7 @@ jobs:
         run: |
           pip install ruff --quiet
           ruff check src/ train.py predict.py evaluation.py api.py \
-            --ignore E501,W503
+            --ignore E501
 
       # ── Import checks ─────────────────────────────────────────────────────
       - name: Check all modules import cleanly

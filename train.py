@@ -1,24 +1,23 @@
 import argparse
-import logging
 import sys
-from pathlib import Path
 
-# Custom module imports
-from src.utils import load_config, setup_logging, prepare_data
-from src.model_builder import get_model, find_learning_rate, export_model
+from src.config_loader import load_config
+from src.data_pipeline import build_dataloaders
+from src.model_builder import build_learner, find_learning_rate, export_model
 from src.trainer import run_training
+from src.utils import setup_logging, set_global_seed, validate_dataset_structure
+
 
 def parse_args():
-    # We remove __doc__ to prevent the NameError and provide a clean string instead
     p = argparse.ArgumentParser(
         description="Train an image classifier using transfer learning.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python train.py --config config/config.yaml --lr-finder"
+        epilog="Example: python train.py --config config/config.yaml --lr-finder",
     )
     p.add_argument('--config', default='config/config.yaml',
                    help='Path to YAML config (default: config/config.yaml)')
     p.add_argument('--lr-finder', action='store_true',
-                   help='Run LR finder and use suggested LR')
+                   help='Run LR finder and print suggested LR')
     p.add_argument('--show-batch', action='store_true',
                    help='Display an augmented sample batch before training')
     p.add_argument('--skip-validation', action='store_true',
@@ -27,41 +26,39 @@ def parse_args():
                    help='1-epoch smoke-test (useful for CI / debugging)')
     return p.parse_args()
 
+
 def main():
     args = parse_args()
-    
-    # 1. Setup
+
     setup_logging()
     cfg = load_config(args.config)
-    
-    # 2. Data
+    set_global_seed(cfg.seed)
+
+    if args.quick:
+        print("⚡ Running quick smoke-test (1 epoch)...")
+        cfg.training.head_epochs = 1
+        cfg.training.finetune_epochs = 0
+        cfg.model.pretrained = False
+
+    if not args.skip_validation:
+        validate_dataset_structure(cfg.data.dataset_path)
+
     print("📦 Preparing data...")
-    dls = prepare_data(cfg)
-    
+    dls = build_dataloaders(cfg)
+
     if args.show_batch:
         print("🖼️ Showing sample batch...")
         dls.show_batch(max_n=9)
-        # Note: In Colab, you might need plt.show() if not using %matplotlib inline
-    
-    # 3. Model
-    learn = get_model(dls)
-    
-    # 4. Learning Rate Logic
+
+    learn = build_learner(dls, cfg)
+
     if args.lr_finder:
         print("🔍 Finding optimal learning rate...")
-        # This uses the stable suggested_funcs we put in model_builder
         suggested_lr = find_learning_rate(learn)
-        print(f"✅ Suggested LR (Valley): {suggested_lr.valley:.2e}")
-        return # Stop here as requested by --lr-finder flag
+        print(f"✅ Suggested LR (Valley): {suggested_lr:.2e}")
+        return
 
-    # 5. Training
-    if args.quick:
-        print("⚡ Running quick smoke-test (1 epoch)...")
-        cfg.training.epochs = 1
-        
     learn = run_training(learn, cfg)
-    
-    # 6. Export
     export_model(learn, cfg.model.export_path)
 
 if __name__ == "__main__":
