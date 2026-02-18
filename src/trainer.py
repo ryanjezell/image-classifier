@@ -5,53 +5,36 @@
 # Phase 2  Backbone unfrozen → fine-tune all layers with discriminative LRs
 # ─────────────────────────────────────────────────────────────────────────────
 
+from fastai.vision.all import *
 import logging
-from fastai.vision.all import slice    # discriminative LR slice
 
-from src.config_loader import AppConfig
+# NOTE: We do NOT import 'slice' because it is a Python built-in.
+# FastAI uses the built-in slice() for discriminative learning rates.
 
-
-def run_training(learn, cfg: AppConfig) -> None:
+def run_training(learn, cfg):
     """
-    Executes Phase 1 (head-only) then Phase 2 (full fine-tune).
-    Modifies `learn` in place. Call export_model() afterwards.
+    Runs the training cycle based on the provided configuration.
+    Optimized for Colab to prevent flickering and progress bar crashes.
     """
-    tc = cfg.training
-
-    # ── Phase 1 ──────────────────────────────────────────────────────────────
-    logging.info("━" * 60)
-    logging.info(f"PHASE 1 — head training  (epochs={tc.head_epochs}, lr={tc.head_lr:.1e})")
-    logging.info("━" * 60)
-
-    learn.fit_one_cycle(tc.head_epochs, lr_max=tc.head_lr)
-
-    m = learn.validate()
-    logging.info(f"[P1] val_loss={m[0]:.4f}  accuracy={m[1]:.4f}")
-
-    # ── Phase 2 ──────────────────────────────────────────────────────────────
-    logging.info("━" * 60)
-    logging.info(f"PHASE 2 — full fine-tune  (epochs={tc.finetune_epochs}, "
-                 f"lr={tc.finetune_lr_min:.1e}→{tc.finetune_lr_max:.1e})")
-    logging.info("━" * 60)
-
-    learn.unfreeze()
-
-    learn.fit_one_cycle(
-        tc.finetune_epochs,
-        lr_max=slice(tc.finetune_lr_min, tc.finetune_lr_max),
-    )
-
-    m = learn.validate()
-    logging.info("━" * 60)
-    logging.info("TRAINING COMPLETE")
-    logging.info(f"  val_loss  : {m[0]:.4f}")
-    logging.info(f"  top-1 acc : {m[1]:.4f}  ({m[1]*100:.1f}%)")
-    logging.info(f"  top-2 acc : {m[2]:.4f}  ({m[2]*100:.1f}%)")
-    logging.info("━" * 60)
-
-    # Reload best checkpoint saved by SaveModelCallback
+    epochs = cfg.training.epochs
+    lr_max = cfg.training.lr_max
+    
+    print(f"🚀 Training for {epochs} epochs with max learning rate: {lr_max}")
+    
+    # We use learn.no_bar() to prevent the flickering purple box in Colab
+    # We use learn.fit_one_cycle which internally handles discriminative LRs
     try:
-        learn.load("best_model")
-        logging.info("[TRAINER] Best model checkpoint loaded.")
+        with learn.no_bar():
+            # If lr_max is a slice (e.g. slice(1e-6, 1e-4)), 
+            # FastAI handles it automatically.
+            learn.fit_one_cycle(epochs, lr_max)
+            
+        print("✅ Training complete.")
+        # Print a clean summary of the final metrics
+        learn.recorder.print_log()
+        
     except Exception as e:
-        logging.warning(f"[TRAINER] Could not load best checkpoint ({e}). Using final weights.")
+        logging.error(f"Training failed: {str(e)}")
+        raise e
+
+    return learn
