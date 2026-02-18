@@ -5,36 +5,36 @@
 # Phase 2  Backbone unfrozen → fine-tune all layers with discriminative LRs
 # ─────────────────────────────────────────────────────────────────────────────
 
-from fastai.vision.all import *
 import logging
 
-# NOTE: We do NOT import 'slice' because it is a Python built-in.
-# FastAI uses the built-in slice() for discriminative learning rates.
 
 def run_training(learn, cfg):
     """
-    Runs the training cycle based on the provided configuration.
-    Optimized for Colab to prevent flickering and progress bar crashes.
+    Runs two-phase transfer learning based on config.
     """
-    epochs = cfg.training.epochs
-    lr_max = cfg.training.lr_max
-    
-    print(f"🚀 Training for {epochs} epochs with max learning rate: {lr_max}")
-    
-    # We use learn.no_bar() to prevent the flickering purple box in Colab
-    # We use learn.fit_one_cycle which internally handles discriminative LRs
-    try:
-        with learn.no_bar():
-            # If lr_max is a slice (e.g. slice(1e-6, 1e-4)), 
-            # FastAI handles it automatically.
-            learn.fit_one_cycle(epochs, lr_max)
-            
-        print("✅ Training complete.")
-        # Print a clean summary of the final metrics
-        learn.recorder.print_log()
-        
-    except Exception as e:
-        logging.error(f"Training failed: {str(e)}")
-        raise e
+    tc = cfg.training
 
+    logging.info(
+        "[TRAIN] Phase 1: freeze + fit_one_cycle(epochs=%s, lr=%s)",
+        tc.head_epochs,
+        tc.head_lr,
+    )
+    if tc.head_epochs > 0:
+        learn.freeze()
+        learn.fit_one_cycle(tc.head_epochs, lr_max=tc.head_lr)
+
+    logging.info(
+        "[TRAIN] Phase 2: unfreeze + fit_one_cycle(epochs=%s, lr=slice(%s, %s))",
+        tc.finetune_epochs,
+        tc.finetune_lr_min,
+        tc.finetune_lr_max,
+    )
+    if tc.finetune_epochs > 0:
+        learn.unfreeze()
+        learn.fit_one_cycle(
+            tc.finetune_epochs,
+            lr_max=slice(tc.finetune_lr_min, tc.finetune_lr_max),
+        )
+
+    logging.info("[TRAIN] Training complete")
     return learn

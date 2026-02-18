@@ -3,6 +3,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 import logging
+from functools import partial
 from pathlib import Path
 
 import torch
@@ -14,7 +15,6 @@ from fastai.vision.all import (
 )
 
 try:
-    from fastai.callback.fp16 import to_fp16
     FP16_AVAILABLE = True
 except ImportError:
     FP16_AVAILABLE = False
@@ -71,7 +71,7 @@ def build_learner(dls, cfg: AppConfig):
 
     kwargs = dict(
         dls=dls,
-        metrics=[accuracy, top_k_accuracy],
+        metrics=[accuracy, partial(top_k_accuracy, k=3)],
         loss_func=CrossEntropyLossFlat(label_smoothing=tc.label_smoothing),
         wd=tc.weight_decay,
         pretrained=cfg.model.pretrained,
@@ -117,6 +117,12 @@ def export_model(learn, export_path: str) -> None:
     """
     p = Path(export_path)
     p.parent.mkdir(parents=True, exist_ok=True)
+
+    # CSVLogger can hold open file handles that are not pickleable.
+    for cb in list(getattr(learn, "cbs", [])):
+        if isinstance(cb, CSVLogger):
+            learn.remove_cb(cb)
+
     learn.export(p)
     size_mb = p.stat().st_size / 1_048_576
     logging.info(f"[EXPORT] Saved to '{export_path}'  ({size_mb:.1f} MB)")
