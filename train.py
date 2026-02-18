@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 
 # Custom module imports
@@ -7,6 +6,7 @@ from src.config_loader import load_config
 from src.data_pipeline import build_dataloaders
 from src.model_builder import build_learner, find_learning_rate, export_model
 from src.trainer import run_training
+from src.utils import setup_logging, set_global_seed, validate_dataset_structure
 
 def parse_args():
     # We remove __doc__ to prevent the NameError and provide a clean string instead
@@ -22,7 +22,7 @@ def parse_args():
     p.add_argument('--show-batch', action='store_true',
                    help='Display an augmented sample batch before training')
     p.add_argument('--skip-validation', action='store_true',
-                   help='Skip dataset structure pre-check')
+                   help='Skip dataset structure pre-check (enabled by default)')
     p.add_argument('--quick', action='store_true',
                    help='Quick smoke-test (head=1 epoch, finetune up to 1 epoch)')
     return p.parse_args()
@@ -31,10 +31,15 @@ def main():
     args = parse_args()
     
     # 1. Setup
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    setup_logging()
     cfg = load_config(args.config)
+    set_global_seed(cfg.seed)
     
     # 2. Data
+    if not args.skip_validation:
+        print("🔎 Validating dataset structure...")
+        validate_dataset_structure(cfg.data.dataset_path)
+
     print("📦 Preparing data...")
     dls = build_dataloaders(cfg)
     
