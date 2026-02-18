@@ -77,7 +77,7 @@ def validate_dataset_structure(dataset_path: str, min_images_per_class: int = 20
             f"Dataset must have ≥ 2 class folders. Found {len(entries)} in '{dataset_path}'."
         )
 
-    for entry in sorted(entries):
+    for entry in sorted(entries, key=lambda e: e.name.lower()):
         count = sum(
             1 for f in os.scandir(entry.path)
             if f.is_file() and os.path.splitext(f.name)[1].lower() in valid_ext
