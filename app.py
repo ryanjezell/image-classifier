@@ -312,6 +312,22 @@ def _yaml_value(key_path, value):
         yaml.dump(cfg, f, default_flow_style=False)
 
 
+def _normalize_path(raw_path: str) -> Path:
+    """Normalizes Windows/Linux/macOS-friendly user-provided paths."""
+    return Path(raw_path.strip().strip('"').strip("'")).expanduser()
+
+
+def _mkdir_if_missing(raw_path: str, label: str, warnings):
+    """Creates directory if it doesn't exist; returns Path or None for empty input."""
+    if not raw_path or not raw_path.strip():
+        return None
+    path = _normalize_path(raw_path)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+        warnings.append(f"Created missing folder for {label}: {path}")
+    return path
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — CONFIGURE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -323,33 +339,42 @@ def save_config(c1n, c1s, c2n, c2s, c3n, c3s,
 
     errors, info, warnings = [], [], []
 
-    for name, src in [(c1n, c1s), (c2n, c2s), (c3n, c3s)]:
+    class_rows = [
+        (c1n.strip() or "class_1", c1s),
+        (c2n.strip() or "class_2", c2s),
+        (c3n.strip() or "class_3", c3s),
+    ]
+
+    class_paths = []
+    for name, src in class_rows:
         if not src.strip():
             errors.append(f"'{name}' source path is empty.")
             continue
-        if not Path(src).exists():
-            errors.append(f"Folder not found: {src}")
-        else:
-            c = count_media_files(src)
-            if c['total'] == 0:
-                errors.append(f"'{name}': no images or videos found in {src}")
-            elif c['total'] < 20:
-                warnings.append(f"'{name}': only {c['total']} files (20+ recommended)")
-            else:
-                info.append(f"'{name}': {c['images']} images + {c['videos']} videos = {c['total']} total")
+        path = _mkdir_if_missing(src, f"class '{name}'", warnings)
+        if path is not None:
+            class_paths.append((name, path))
 
-    if unsorted and not Path(unsorted).exists():
-        warnings.append(f"Unsorted folder not found yet (OK if creating it later): {unsorted}")
+    unsorted_path = _mkdir_if_missing(unsorted, "unsorted input", warnings)
+    sorted_path = _mkdir_if_missing(sorted_out, "sorted output", warnings)
 
     if errors:
         return "❌  " + "\n❌  ".join(errors)
 
+    for name, path in class_paths:
+        c = count_media_files(str(path))
+        if c['total'] == 0:
+            warnings.append(f"'{name}': no media files yet in {path} (add files, then run Data Setup)")
+        elif c['total'] < 20:
+            warnings.append(f"'{name}': only {c['total']} files (20+ recommended)")
+        else:
+            info.append(f"'{name}': {c['images']} images + {c['videos']} videos = {c['total']} total")
+
     STATE["config"].update({
-        "class1_name": c1n.strip(), "class1_source": c1s.strip(),
-        "class2_name": c2n.strip(), "class2_source": c2s.strip(),
-        "class3_name": c3n.strip(), "class3_source": c3s.strip(),
-        "unsorted_folder":      unsorted.strip(),
-        "sorted_output":        sorted_out.strip(),
+        "class1_name": class_rows[0][0], "class1_source": str(_normalize_path(c1s)),
+        "class2_name": class_rows[1][0], "class2_source": str(_normalize_path(c2s)),
+        "class3_name": class_rows[2][0], "class3_source": str(_normalize_path(c3s)),
+        "unsorted_folder":      str(unsorted_path) if unsorted_path else "",
+        "sorted_output":        str(sorted_path) if sorted_path else "",
         "confidence_threshold": float(threshold),
         "batch_size":           int(batch_size),
         "image_size":           int(image_size),
@@ -376,36 +401,37 @@ def save_config(c1n, c1s, c2n, c2s, c3n, c3s,
 def build_config_tab():
     with gr.Tab("⚙️  Configure"):
         gr.HTML("""
-            <div class="section-title">Google Drive Paths</div>
+            <div class="section-title">Local / Network Paths</div>
             <div class="info-box">
               Works with <strong>image files</strong> (.jpg .png .webp) AND
               <strong>video files</strong> (.mp4 .mov .avi .mkv etc.).<br>
               For videos, the app automatically extracts the thumbnail —
-              the same preview image shown in Google Drive and Windows Explorer.
+              the same preview image shown in Windows Explorer.<br>
+              Missing folders are auto-created when you save this tab.
             </div>
         """)
 
         with gr.Group():
             with gr.Row():
                 c1n = gr.Textbox(label="Class 1 Name", placeholder="e.g. ads",       scale=1)
-                c1s = gr.Textbox(label="Class 1 Drive Path",
-                                  placeholder="/content/drive/MyDrive/videos/ads",    scale=3)
+                c1s = gr.Textbox(label="Class 1 Source Folder",
+                                  placeholder="C:/datasets/videos/ads",    scale=3)
             with gr.Row():
                 c2n = gr.Textbox(label="Class 2 Name", placeholder="e.g. tutorials", scale=1)
-                c2s = gr.Textbox(label="Class 2 Drive Path",
-                                  placeholder="/content/drive/MyDrive/videos/tutorials", scale=3)
+                c2s = gr.Textbox(label="Class 2 Source Folder",
+                                  placeholder="C:/datasets/videos/tutorials", scale=3)
             with gr.Row():
                 c3n = gr.Textbox(label="Class 3 Name", placeholder="e.g. vlogs",     scale=1)
-                c3s = gr.Textbox(label="Class 3 Drive Path",
-                                  placeholder="/content/drive/MyDrive/videos/vlogs",  scale=3)
+                c3s = gr.Textbox(label="Class 3 Source Folder",
+                                  placeholder="C:/datasets/videos/vlogs",  scale=3)
 
         gr.HTML('<div class="section-title" style="margin-top:18px">Sorting Paths</div>')
         with gr.Group():
             with gr.Row():
                 unsorted   = gr.Textbox(label="Unsorted Folder (mixed input)",
-                                         placeholder="/content/drive/MyDrive/videos/unsorted")
+                                         placeholder="C:/datasets/videos/unsorted")
                 sorted_out = gr.Textbox(label="Sorted Output Folder",
-                                         placeholder="/content/drive/MyDrive/videos/sorted")
+                                         placeholder="C:/datasets/videos/sorted")
 
         gr.HTML('<div class="section-title" style="margin-top:18px">Model & Training Settings</div>')
         with gr.Group():
@@ -570,7 +596,7 @@ def run_training(use_lr_finder, progress=gr.Progress(track_tqdm=True)):
     log = _log(log, "Launching training pipeline…")
     progress(0.05, desc="Starting…")
 
-    cmd = ["python", "train.py"]
+    cmd = [sys.executable, "train.py"]
     if use_lr_finder:
         cmd.append("--lr-finder")
         log = _log(log, "LR Finder enabled")
@@ -874,7 +900,7 @@ def run_evaluation(progress=gr.Progress(track_tqdm=True)):
 
     try:
         proc = subprocess.run(
-            ["python", "evaluation.py",
+            [sys.executable, "evaluation.py",
              "--model", "models/exported/classifier.pkl",
              "--data",  "data/dataset",
              "--output", "eval_report.json"],
@@ -988,9 +1014,10 @@ def build_app():
 if __name__ == "__main__":
     app = build_app()
     app.launch(
-        share=True,
+        share=False,
         debug=True,
         show_error=True,
-        server_name="0.0.0.0",
+        inbrowser=False,
+        server_name="127.0.0.1",
         server_port=7860,
     )
