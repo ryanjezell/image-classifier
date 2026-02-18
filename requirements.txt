@@ -1,13 +1,6 @@
-fastai>=2.7.12
-torch>=2.0.0
-torchvision>=0.15.0
-pyyaml>=6.0
-Pillow>=9.0.0
-matplotlib>=3.5.0
-scikit-learn>=1.0.0
-# API server (optional)
-fastapi>=0.100.0
-uvicorn[standard]>=0.22.0
-python-multipart>=0.0.6
-# Hyperparameter tuning (optional)
-optuna>=3.0.0
+fastai==2.7.18
+torch==2.5.1
+torchvision==0.20.1
+flask==3.1.0
+pillow==11.0.0
+fastcore==1.7.20
