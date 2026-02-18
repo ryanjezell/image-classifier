@@ -1,68 +1,63 @@
 import argparse
-import logging
+import json
 import sys
-from pathlib import Path
 
-# Custom module imports
-from src.utils import load_config, setup_logging, prepare_data
-from src.model_builder import get_model, find_learning_rate, export_model
-from src.trainer import run_training
+from src.config_loader import load_config
+from src.torch_pipeline import build_dataloaders, create_model, save_training_artifacts, train_model
+from src.utils import get_device, set_global_seed, setup_logging, validate_dataset_structure
+
 
 def parse_args():
-    # We remove __doc__ to prevent the NameError and provide a clean string instead
     p = argparse.ArgumentParser(
-        description="Train an image classifier using transfer learning.",
+        description="Train an image classifier using torchvision + PyTorch.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python train.py --config config/config.yaml --lr-finder"
+        epilog="Example: python train.py --config config/config.yaml --quick",
     )
-    p.add_argument('--config', default='config/config.yaml',
-                   help='Path to YAML config (default: config/config.yaml)')
-    p.add_argument('--lr-finder', action='store_true',
-                   help='Run LR finder and use suggested LR')
-    p.add_argument('--show-batch', action='store_true',
-                   help='Display an augmented sample batch before training')
-    p.add_argument('--skip-validation', action='store_true',
-                   help='Skip dataset structure pre-check')
-    p.add_argument('--quick', action='store_true',
-                   help='1-epoch smoke-test (useful for CI / debugging)')
+    p.add_argument('--config', default='config/config.yaml', help='Path to YAML config')
+    p.add_argument('--lr-finder', action='store_true', help='Show configured LR and exit')
+    p.add_argument('--show-batch', action='store_true', help='Show one training batch tensor shape')
+    p.add_argument('--skip-validation', action='store_true', help='Skip dataset structure pre-check')
+    p.add_argument('--quick', action='store_true', help='1-epoch smoke-test')
     return p.parse_args()
+
 
 def main():
     args = parse_args()
-    
-    # 1. Setup
     setup_logging()
     cfg = load_config(args.config)
-    
-    # 2. Data
-    print("📦 Preparing data...")
-    dls = prepare_data(cfg)
-    
-    if args.show_batch:
-        print("🖼️ Showing sample batch...")
-        dls.show_batch(max_n=9)
-        # Note: In Colab, you might need plt.show() if not using %matplotlib inline
-    
-    # 3. Model
-    learn = get_model(dls)
-    
-    # 4. Learning Rate Logic
-    if args.lr_finder:
-        print("🔍 Finding optimal learning rate...")
-        # This uses the stable suggested_funcs we put in model_builder
-        suggested_lr = find_learning_rate(learn)
-        print(f"✅ Suggested LR (Valley): {suggested_lr.valley:.2e}")
-        return # Stop here as requested by --lr-finder flag
+    set_global_seed(cfg.seed)
 
-    # 5. Training
+    if not args.skip_validation:
+        validate_dataset_structure(cfg.data.dataset_path, min_images_per_class=1)
+
+    dls = build_dataloaders(cfg)
+    if args.show_batch:
+        xb, yb = next(iter(dls["train"]))
+        print(f"Batch tensors: images={tuple(xb.shape)}, labels={tuple(yb.shape)}")
+
+    if args.lr_finder:
+        print(f"Configured training LR: {cfg.training.head_lr}")
+        return
+
     if args.quick:
-        print("⚡ Running quick smoke-test (1 epoch)...")
-        cfg.training.epochs = 1
-        
-    learn = run_training(learn, cfg)
-    
-    # 6. Export
-    export_model(learn, cfg.model.export_path)
+        cfg.training.head_epochs = 1
+        cfg.training.finetune_epochs = 0
+
+    model = create_model(
+        architecture=cfg.model.architecture,
+        num_classes=len(dls["classes"]),
+        pretrained=cfg.model.pretrained,
+        dropout=cfg.training.dropout,
+    )
+
+    device = get_device()
+    model = model.to(device)
+    model, history = train_model(model, dls, cfg, device)
+
+    out_dir = save_training_artifacts(model, dls["classes"], cfg)
+    (out_dir / "training_history.json").write_text(json.dumps(history, indent=2))
+    print(f"✅ Saved artifacts in: {out_dir}")
+
 
 if __name__ == "__main__":
     try:

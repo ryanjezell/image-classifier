@@ -19,6 +19,7 @@ class TrainingConfig:
     weight_decay: float = 0.01
     label_smoothing: float = 0.1
     mixup_alpha: float = 0.4
+    scheduler: str = "onecycle"
 
 
 @dataclass
@@ -33,7 +34,7 @@ class DataConfig:
 class ModelConfig:
     architecture: str = "resnet50"
     pretrained: bool = True
-    export_path: str = "models/exported/classifier.pkl"
+    export_path: str = "models/exported"
 
 
 @dataclass
@@ -84,7 +85,7 @@ def load_config(config_path: str = "config/config.yaml") -> AppConfig:
         model=ModelConfig(
             architecture=m.get('architecture', 'resnet50'),
             pretrained=m.get('pretrained', True),
-            export_path=m.get('export_path', 'models/exported/classifier.pkl'),
+            export_path=m.get('export_path', 'models/exported'),
         ),
         training=TrainingConfig(
             head_epochs=t.get('head_epochs', 4),
@@ -96,6 +97,7 @@ def load_config(config_path: str = "config/config.yaml") -> AppConfig:
             weight_decay=t.get('weight_decay', 0.01),
             label_smoothing=t.get('label_smoothing', 0.1),
             mixup_alpha=t.get('mixup_alpha', 0.4),
+            scheduler=t.get('scheduler', 'onecycle'),
         ),
         augmentation=AugmentationConfig(
             flip_horiz=a.get('flip_horiz', True),

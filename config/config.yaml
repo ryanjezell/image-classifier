@@ -11,7 +11,7 @@ data:
 model:
   architecture: "resnet50"       # resnet34 | resnet50 | efficientnet_b0 | efficientnet_b3
   pretrained: true
-  export_path: "models/exported/classifier.pkl"
+  export_path: "models/exported"
 
 training:
   head_epochs: 4
@@ -23,6 +23,7 @@ training:
   weight_decay: 0.01
   label_smoothing: 0.1
   mixup_alpha: 0.4
+  scheduler: "onecycle"
 
 augmentation:
   flip_horiz: true

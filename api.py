@@ -26,7 +26,7 @@ from predict import ImageClassifier
 # ── Startup ──────────────────────────────────────────────────────────────────
 # Model is loaded ONCE at server startup — not per request.
 # Reloading on every request adds 1-5 s latency and is unnecessary.
-MODEL_PATH = "models/exported/classifier.pkl"
+MODEL_PATH = "models/exported/model_state.pt"
 try:
     classifier = ImageClassifier(MODEL_PATH, cpu_only=True)
 except FileNotFoundError as e:
